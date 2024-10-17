@@ -2,12 +2,7 @@ import fs from 'fs';
 import { Page } from '@playwright/test';
 import { jwtDecode } from 'jwt-decode';
 
-/** 'LOCAL' | 'DEV' | 'UAT' */
-export type ENVIRONMENT = 'LOCAL' | 'DEV' | 'UAT';
-export const ENVIRONMENTDEFAULT = 'LOCAL';
 export const userPath = 'auth/user.json';
-
-const env: ENVIRONMENT = (process.env.ENVIRONMENT as ENVIRONMENT) || ENVIRONMENTDEFAULT;
 
 // Helper function to wait for the fulfilled response
 export async function getFulfilledResponse(page: Page, path: string) {
@@ -26,10 +21,10 @@ export function isValidDate(d: string) {
   return date.getTime() === date.getTime();
 }
 
-// Auth phase can be skipped when the ENVIRONMENT === 'LOCAL' and a user.json file exists and the token is still valid
+// Auth phase can be skipped when an user.json file exists and the token is still valid
 export const skipAuth = async (): Promise<boolean> =>
   new Promise((resolve) => {
-    if (fs.existsSync(userPath) && env === 'LOCAL') {
+    if (fs.existsSync(userPath)) {
       fs.readFile(userPath, 'utf8', (err, jsonString) => {
         if (err) {
           console.log('File read failed:', err);

@@ -24,7 +24,6 @@ The table below describes all the Environment variables needed by the applicatio
 | Variable name | Description              | type                  |
 | ------------- | ------------------------ | --------------------- |
 | BASE_URL      | the target site          | url                   |
-| ENVIRONMENT   | environment of execution | "LOCAL", "DEV", "UAT" |
 | USERNAME      | Username to access with  | string                |
 | PASSWORD      | Password for the user    | string                |
 
