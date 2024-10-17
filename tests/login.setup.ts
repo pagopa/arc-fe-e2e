@@ -1,10 +1,10 @@
-import { test as setup, expect } from '@playwright/test';
+import { test as setup, expect, Page } from '@playwright/test';
 import { skipAuth, userPath } from '../utils';
 import path from 'path';
 
 const authFile = path.join(__dirname, `../${userPath}`);
 
-const commonStep = async (page) => {
+const executeLoginSteps = async (page: Page) => {
   const username = process.env?.USERNAME;
   const password = process.env?.PASSWORD;
   expect(username).toBeTruthy();
@@ -25,64 +25,57 @@ const commonStep = async (page) => {
   await page.getByLabel('Password').fill(password);
   await page.getByRole('button', { name: 'Entra con SPID' }).click();
   await page.getByRole('button', { name: 'Conferma' }).click();
-  await page.waitForURL('/pagamenti/auth-callback*');
+}
+
+const saveState = async (page: Page) => {
+  await page.waitForURL('**/pagamenti/');
+  await expect(page.getByLabel('app.dashboard.greeting')).toBeVisible();
+  const accessToken = await page.evaluate(() => localStorage.getItem('accessToken'));
+  expect(accessToken).toBeTruthy();
+  // storing user contex
+  await page.context().storageState({ path: authFile });
 }
 
 // LOCALHOST
-// Questo setup è da utilizzarsi quando i test vengono lanciati puntando ad un'abiente locale
-// è necessario avere uno step dedicato e differente rispetta all'ambiente dev o uat
-// perchè il servizio esterno di autenticazione oneIdentity ridirigge a sempre ad uno specifico ambiente (dev o uat)
-// e non prevede un ritorno su locahost. Per questo motivo la sezione page.route provedde and intercettare il ritorno,
-// ad abortire la chiamata per l'ottenimento del token (pena l'ivalidamento) e redirigere correttamente su localhost
-// così che al termine del flusso, venga prodotto un file auth/user.json per l'ambiente corretto (localhost)
+// This setup is to be used when tests are launched pointing to a local environment
+// it is necessary to have a dedicated and different step respecting the dev or uat environment
+// because the external oneIdentity authentication service always redirects to a specific environment (dev or uat)
+// and does not expect a return to locahost. For this reason the page.route section provided to intercept the return,
+// abort the call to obtain the token (under penalty of invalidation) and redirect correctly to localhost
+// so that when the flow ends, an auth/user.json file is produced for the correct environment (localhost)
 setup(
-  "[E2E-ARC-1] local: Come Cittadino voglio autenticarmi nell' Area Riservata Cittadino per poter usufruire dei servizi offerti",
+  "[E2E-ARC-1] localhost: Come Cittadino voglio autenticarmi nell' Area Riservata Cittadino per poter usufruire dei servizi offerti",
   async ({ page }) => {
-    setup.skip(await skipAuth() ? true : process.env.BASE_URL?.includes('cittadini') as boolean,
-      'Non è necessario autenticarsi più volte, sopratutto durante le fasi di sviluppo e debug'
-    );
+    setup.skip(await skipAuth() ? true : process.env.BASE_URL?.includes('cittadini') as boolean);
 
     await page.route(
       '**/token/oneidentity*',
       async (route, request) => {
-        console.log('fire')
         const url = new URL(page.url())
         if( url.hostname.includes('cittadini.pagopa.it')) {
-          await route.abort();
           const { search } = new URL(request.url());
-          page.goto(`http://localhost:1234/pagamenti/auth-callback${search}`);
+          await page.goto(`/pagamenti/auth-callback${search}`);
         } else {
           await route.continue();
         }
       }
     );
 
-    await commonStep(page);
-
-    //await page.waitForURL('/pagamenti/auth-callback*');
-    const accessToken = await page.evaluate(() => localStorage.getItem('accessToken'));
-    expect(accessToken).toBeTruthy();
-    // storing user contex
-    await page.context().storageState({ path: authFile });
+    await executeLoginSteps(page);
+    // waitForTimeout should not be used in production, Tests that wait for time are inherently flaky.
+    // unfortunately this is the only way to make this test works properly, actually
+    // we should find a more solid solution
+    await page.waitForTimeout(3*1000);
+    await saveState(page);
   }
 );
 
 // DEV, UAT
 setup(
-  "[E2E-ARC-1] env Come Cittadino voglio autenticarmi nell' Area Riservata Cittadino per poter usufruire dei servizi offerti",
+  "[E2E-ARC-1] Come Cittadino voglio autenticarmi nell' Area Riservata Cittadino per poter usufruire dei servizi offerti",
   async ({ page }) => {
-    setup.skip(
-      await skipAuth() ? true : process.env.BASE_URL?.includes('localhost') as boolean,
-      'Non è necessario autenticarsi più volte, sopratutto durante le fasi di sviluppo e debug'
-    );
-
-    await commonStep(page);
-
-    await page.waitForURL('**/pagamenti/');
-    await expect(page.getByLabel('app.dashboard.greeting')).toBeVisible();
-    const accessToken = await page.evaluate(() => localStorage.getItem('accessToken'));
-    expect(accessToken).toBeTruthy();
-    // storing user contex
-    await page.context().storageState({ path: authFile });
+    setup.skip(await skipAuth() ? true : process.env.BASE_URL?.includes('localhost') as boolean);
+    await executeLoginSteps(page);
+    await saveState(page);
   }
 );
