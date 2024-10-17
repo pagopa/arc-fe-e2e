@@ -50,22 +50,15 @@ setup(
 
     await page.route(
       '**/token/oneidentity*',
-      async (route, request) => {
+      async (_route, request) => {
         const url = new URL(page.url())
-        if( url.hostname.includes('cittadini.pagopa.it')) {
           const { search } = new URL(request.url());
           await page.goto(`/pagamenti/auth-callback${search}`);
-        } else {
-          await route.continue();
-        }
-      }
+      }, { times: 1 }
     );
 
     await executeLoginSteps(page);
-    // waitForTimeout should not be used in production, Tests that wait for time are inherently flaky.
-    // unfortunately this is the only way to make this test works properly, actually
-    // we should find a more solid solution
-    await page.waitForTimeout(3*1000);
+    await page.unrouteAll({ behavior: 'ignoreErrors' })
     await saveState(page);
   }
 );
