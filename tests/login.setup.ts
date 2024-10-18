@@ -28,7 +28,7 @@ const executeLoginSteps = async (page: Page) => {
 }
 
 const saveState = async (page: Page) => {
-  await page.waitForURL('**/pagamenti/');
+  // this means we are logged in on the main dashboard page
   await expect(page.getByLabel('app.dashboard.greeting')).toBeVisible();
   const accessToken = await page.evaluate(() => localStorage.getItem('accessToken'));
   expect(accessToken).toBeTruthy();
@@ -36,38 +36,30 @@ const saveState = async (page: Page) => {
   await page.context().storageState({ path: authFile });
 }
 
-// LOCALHOST
-// This setup is to be used when tests are launched pointing to a local environment
-// it is necessary to have a dedicated and different step respecting the dev or uat environment
-// because the external oneIdentity authentication service always redirects to a specific environment (dev or uat)
-// and does not expect a return to locahost. For this reason the page.route section provided to intercept the return,
-// abort the call to obtain the token (under penalty of invalidation) and redirect correctly to localhost
-// so that when the flow ends, an auth/user.json file is produced for the correct environment (localhost)
-setup(
-  "[E2E-ARC-1] localhost: Come Cittadino voglio autenticarmi nell' Area Riservata Cittadino per poter usufruire dei servizi offerti",
-  async ({ page }) => {
-    setup.skip(await skipAuth() ? true : process.env.BASE_URL?.includes('cittadini') as boolean);
-
-    await page.route(
-      '**/token/oneidentity*',
-      async (_route, request) => {
-        const url = new URL(page.url())
-          const { search } = new URL(request.url());
-          await page.goto(`/pagamenti/auth-callback${search}`);
-      }, { times: 1 }
-    );
-
-    await executeLoginSteps(page);
-    await page.unrouteAll({ behavior: 'ignoreErrors' })
-    await saveState(page);
-  }
-);
-
-// DEV, UAT
 setup(
   "[E2E-ARC-1] Come Cittadino voglio autenticarmi nell' Area Riservata Cittadino per poter usufruire dei servizi offerti",
   async ({ page }) => {
-    setup.skip(await skipAuth() ? true : process.env.BASE_URL?.includes('localhost') as boolean);
+    setup.skip(await skipAuth());
+
+    // LOCALHOST
+    // This route is used when tests are launched pointing to a local environment
+    // it is necessary because oneIdentity auth service always redirects to a specific environment (dev or uat)
+    // For this reason the page.route section provided to intercept the return,
+    // abort the call to obtain the token (under penalty of invalidation) and redirect correctly to localhost
+    // so that when the flow ends, an auth/user.json file is produced for the correct environment (localhost)
+    page.route(
+      '**/token/oneidentity*',
+      async (route, request) => {
+        if (process.env.BASE_URL?.includes('localhost')) {
+          const { search } = new URL(request.url());
+          await route.abort();
+          await page.goto(`/pagamenti/auth-callback${search}`);
+          return
+        } 
+        route.continue();
+        }, { times: 1 }
+    );
+
     await executeLoginSteps(page);
     await saveState(page);
   }
