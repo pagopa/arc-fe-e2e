@@ -102,6 +102,8 @@ test(`[E2E-ARC-12B] Come Cittadino autenticato voglio poter inserire più avvisi
     },
     { times: 1 }
   );
+  const headerCartAmount = page.locator('#header-cart-amount');
+  headerCartAmount.click();
   const drawerCartAmount = page.locator('#drawer-cart-amount');
   await expect(drawerCartAmount).not.toHaveText(amountToEur(0));
   await page.locator('#pay-button').click();
@@ -109,6 +111,7 @@ test(`[E2E-ARC-12B] Come Cittadino autenticato voglio poter inserire più avvisi
 
   // 422(avviso-non-pagabile) error
   await page.goBack();
+  headerCartAmount.click();
   page.route('**/checkout/ec/v1/carts', async (route) => {
     await route.fulfill({
       json: {
