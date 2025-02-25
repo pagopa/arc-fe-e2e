@@ -97,5 +97,5 @@ test('[E2E-ARC-9B] Come Cittadino voglio accedere alla pagina di dettaglio di un
   });
   await page.reload();
   await expect(page).toHaveURL(`/pagamenti/ricevute/${eventId}`);
-  await expect(page.locator('#transaction-detail-error')).toBeVisible({ timeout: 20000 });
+  await expect(page.locator('#data-error')).toBeVisible({ timeout: 20000 });
 });

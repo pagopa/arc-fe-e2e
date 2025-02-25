@@ -1,4 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
+import { amountToEur } from '../utils/index';
 
 let page: Page;
 
@@ -71,12 +72,7 @@ test(`Avvisi e pagamento`, async () => {
       const selectedItemDetail = await response.json();
 
       const amount = selectedItemDetail.paymentOptions[0].amount;
-      const amountInEur = new Intl.NumberFormat('it-IT', {
-        style: 'currency',
-        currency: 'EUR',
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-      }).format(amount / Math.pow(10, 2));
+      const amountInEur = amountToEur(amount);
 
       expect(selectedItemDetail.paymentOptions[0].iuv).toBe(
         selectedItem.paymentOptions[0].installments[0].iuv
@@ -98,7 +94,7 @@ test(`Avvisi e pagamento`, async () => {
         selectedItemDetail.paymentOptions[0].iuv
       );
 
-      await expect(page.locator('#payment-notice-pay-button')).toBeEnabled();
+      await expect(page.locator('#payment-notice-add-button')).toBeEnabled();
 
       return selectedItemDetail;
     });
@@ -106,15 +102,12 @@ test(`Avvisi e pagamento`, async () => {
   await test.step(`[E2E-ARC-7] Come Cittadino voglio poter avviare il pagamento di un avviso`, async () => {
     const amount = selectedItemDetail.paymentOptions[0].amount;
 
-    const amountInEur = new Intl.NumberFormat('it-IT', {
-      style: 'currency',
-      currency: 'EUR',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(amount / Math.pow(10, 2));
+    const amountInEur = amountToEur(amount);
 
+    // click to add to the cart
+    await page.locator('#payment-notice-add-button').click();
     // click to pay
-    await page.locator('#payment-notice-pay-button').click();
+    await page.locator('#pay-button').click();
     // wait for checkout
     await expect(page).toHaveURL(new RegExp('checkout.pagopa.it/'));
     // test on checkout side
@@ -130,6 +123,9 @@ test(`[E2E-ARC-5B] Come Cittadino voglio accedere alla lista degli avvisi da pag
 
   await page.goto('/pagamenti/avvisi/');
   await expect(page).toHaveURL('/pagamenti/avvisi/');
+
+  // close the drawer
+  await page.getByTestId('CloseIcon').click();
 
   // test if session storage var is filled
   const OPTIN = await page.evaluate(() => sessionStorage.getItem('OPTIN'));
