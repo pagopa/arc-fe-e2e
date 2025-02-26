@@ -124,9 +124,6 @@ test(`[E2E-ARC-5B] Come Cittadino voglio accedere alla lista degli avvisi da pag
   await page.goto('/pagamenti/avvisi/');
   await expect(page).toHaveURL('/pagamenti/avvisi/');
 
-  // close the drawer
-  await page.getByTestId('CloseIcon').click();
-
   // test if session storage var is filled
   const OPTIN = await page.evaluate(() => sessionStorage.getItem('OPTIN'));
   expect(OPTIN).toBeTruthy();
