@@ -40,7 +40,8 @@ test("[E2E-ARC-3] Come Cittadino voglio 'sloggarmi' dall'applicativo", async ({ 
   await expect(page.getByLabel('party-menu-button')).toBeVisible();
   await page.getByLabel('party-menu-button').click();
   await page.getByRole('menuitem').getByText('Esci').click();
-  await page.waitForURL('**/accesso');
+  // wait for OI
+  await expect(page).toHaveURL(new RegExp('oneid.pagopa.it/'));
 
   const accessToken = await page.evaluate(() => localStorage.getItem('accessToken'));
   expect(accessToken).toBeNull();
