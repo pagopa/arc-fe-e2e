@@ -20,9 +20,8 @@ const executeLoginSteps = async (page: Page) => {
     );
   }
   await page.goto('/');
-  await page.goto('/pagamenti/login');
-  await page.getByLabel('Accedi').click();
-  await page.getByRole('button', { name: 'Entra con SPID' }).click();
+  await page.goto('/pagamenti/accesso');
+  await page.getByTestId('spidButton').click();
   await page.getByTestId(identity_provider_button_test_id).click();
   await page.waitForURL('**/start');
   await expect(page.locator('#username')).toBeVisible({ timeout: 20000 });
