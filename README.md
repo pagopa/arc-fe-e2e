@@ -2,7 +2,7 @@
 
 ## About The Project
 
-This project contains a suite of end-to-end tests for the ARC project. The aim is to have a wide cover of the flows and test the UX in several browser environment.
+This project contains a suite of end-to-end tests for the ARPU project. The aim is to have a wide cover of the flows and test the UX in several browser environment.
 
 ### Built With
 
@@ -24,15 +24,14 @@ The table below describes all the Environment variables needed by the applicatio
 | Variable name                    | Description                | type                  |
 | -------------------------------- | -------------------------- | --------------------- |
 | BASE_URL                         | the target site            | url                   |
-| USERNAME                         | Username to access with    | string                |
-| PASSWORD                         | Password for the user      | string                |
-| IDENTITY_PROVIDER_BUTTON_TEST_ID | button id of auth provider | string                |
+| USER_NAME                        | the user name              | string                |
+| USER_PASSWORD                    | the user password          | string                |
 
 ### Installation
 
 1. Clone the repo
    ```sh
-   git clone https://github.com/pagopa/arc-fe-e2e.git
+   git clone https://github.com/pagopa/arpu-fe-e2e.git
    ```
 2. Install node packages
    ```sh
