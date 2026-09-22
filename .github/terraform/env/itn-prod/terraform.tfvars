@@ -1,0 +1,5 @@
+prefix         = "p4pa"
+env            = "prod"
+env_short      = "p"
+domain         = "cittadini"
+location_short = "itn"

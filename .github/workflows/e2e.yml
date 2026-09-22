@@ -1,0 +1,161 @@
+name: e2e test
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 9 * * 1-5' # Run every weekday at 9am
+  pull_request:
+    branches:
+      - main
+
+env:
+  NODE_VERSION: '22.21.0'
+  MAX_AVAILABLE_REPORTS: '20'
+
+jobs:
+  testing-e2e:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Set up Node.js
+        uses: actions/setup-node@7c12f8017d5436eb855f1ed4399f037a36fbd9e8 # v2
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Install dependecies
+        run: yarn install --immutable
+
+      - name: Install playwright browsers
+        run: yarn playwright install chromium firefox webkit
+
+      - name: Install playwright deps
+        run: yarn playwright install-deps 
+
+      - name: populate environment vars writing down an .env file
+        run: |
+          touch .env
+          echo BASE_URL=https://uat.p4pa.pagopa.it >> .env
+          echo USER_USERNAME=${{ secrets.USER_USERNAME_UAT }} >> .env
+          echo USER_PASSWORD=${{ secrets.USER_PASSWORD_UAT }} >> .env
+          cat .env
+
+      - name: run e2e tests
+        id: run_e2e_tests
+        run: yarn test
+
+      - name: Check if Playwright report exists
+        id: check_report
+        if: always()
+        run: |
+          if [ -d "playwright-report" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: redact sensitive information from Playwright report
+        if: always() && steps.check_report.outputs.exists == 'true'
+        run: ./redact-passwords.sh playwright-report
+
+
+      - name: Generate Playwright report
+        if: always() && steps.check_report.outputs.exists == 'true'
+        run: | 
+          mkdir -p public/reports/${{ github.run_id }}/
+          cp -r playwright-report/* public/reports/${{ github.run_id }}/
+          echo "Playwright report generated at: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/reports/${{ github.run_id }}/"
+
+
+      - name: Generate an index page with links to all reports
+        if: always() && steps.check_report.outputs.exists == 'true'
+        run: |
+          git fetch origin gh-pages:gh-pages || true
+          git worktree add -f existing-reports gh-pages || true
+  
+          if [ -d "existing-reports/reports" ]; then
+            cp -r existing-reports/reports/* public/reports/ || true
+          fi
+
+          # Keep only the newest numeric report folders based on MAX_AVAILABLE_REPORTS.
+          if [ -d "public/reports" ]; then
+            cd public/reports
+            cutoff=$((MAX_AVAILABLE_REPORTS + 1))
+            ls -1d */ 2>/dev/null \
+              | sed 's:/$::' \
+              | grep -E '^[0-9]+$' \
+              | sort -nr \
+              | tail -n +"${cutoff}" \
+              | xargs -r rm -rf
+            cd ../..
+          fi
+
+          cd public/reports
+          REPORT_LIST=""
+          for d in $(ls -1d */ 2>/dev/null | sed 's:/$::' | grep -E '^[0-9]+$' | sort -nr); do
+            report_date=""
+            if [ -e "../../existing-reports/.git" ]; then
+              report_date=$(git -C ../../existing-reports log -1 --diff-filter=A --format='%ad' --date=format:'%d/%m/%Y %H:%M:%S' -- "reports/${d}/index.html" 2>/dev/null || true)
+              if [ -z "$report_date" ]; then
+                report_date=$(git -C ../../existing-reports log -1 --format='%ad' --date=format:'%d/%m/%Y %H:%M:%S' -- "reports/${d}" 2>/dev/null || true)
+              fi
+            fi
+            if [ -z "$report_date" ]; then
+              report_epoch=$(stat -c '%Y' "$d")
+              report_date=$(date -d "@${report_epoch}" '+%d/%m/%Y %H:%M:%S')
+            fi
+            REPORT_LIST="${REPORT_LIST}<li>Report <a href='./reports/${d}/'>#${d}</a> del ${report_date}</li>"
+          done
+          cd ../..
+
+          cat << EOF > public/index.html
+          <!DOCTYPE html>
+          <html lang="it">
+          <head>
+            <meta charset="UTF-8">
+            <title>Storico reports test E2E ARPU</title>
+          </head>
+          <body>
+            <h1>Storico Test E2E ARPU</h1>
+            <ul>
+              ${REPORT_LIST}
+            </ul>
+          </body>
+          </html>
+          EOF
+
+      - name: Verify generated index page
+        if: always() && steps.check_report.outputs.exists == 'true'
+        run: |
+          if [ ! -s "public/index.html" ]; then
+            echo "public/index.html is missing or empty"
+            exit 1
+          fi
+
+      - name: Upload Playwright report to GitHub Pages
+        if: always() && steps.check_report.outputs.exists == 'true'
+        uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453 # v4.1
+        with:
+          publish_dir: ./public
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          keep_files: true
+
+      - name: Alert Slack on e2e test failure
+        if: always() && steps.run_e2e_tests.outcome == 'failure'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          REPORT_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/reports/${{ github.run_id }}/
+          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then
+            echo "SLACK_WEBHOOK_URL secret is not configured; skipping Slack alert."
+            exit 0
+          fi
+
+          payload=$(jq -n \
+            --arg text $'*[arpu-fe-e2e]*\nE2E tests failed for ${{ github.repository }} on ${{ github.ref_name }}. Run: '"$RUN_URL"$'\nReport: '"$REPORT_URL" \
+            '{text: $text}')
+
+          curl -X POST -H 'Content-type: application/json' --data "$payload" "$SLACK_WEBHOOK_URL"
